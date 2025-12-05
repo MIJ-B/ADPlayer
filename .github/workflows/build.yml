@@ -1,32 +1,172 @@
-name: Build APK
+name: 🚀 Build Android APK
 
 on:
   push:
-  workflow_dispatch:
+    branches: 
+      - main
+      - dev
+    tags:
+      - 'v*'
+  pull_request:
+    branches: 
+      - main
+  workflow_dispatch:  # Manual trigger
 
 jobs:
   build:
+    name: 🏗️ Build APK
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     
     steps:
-      - name: Checkout
+      # 1. CHECKOUT CODE
+      - name: 📥 Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
-      - name: Setup JDK
+      # 2. SETUP JDK
+      - name: ☕ Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
       
-      - name: Setup Gradle
+      # 3. SETUP GRADLE
+      - name: 🔧 Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: wrapper
       
-      - name: Build APK
-        run: ./gradlew assembleDebug --stacktrace
+      # 4. GRANT EXECUTE PERMISSION
+      - name: 🔐 Grant Execute Permission for gradlew
+        run: chmod +x gradlew
       
-      - name: Upload APK
+      # 5. CLEAN PROJECT
+      - name: 🧹 Clean Project
+        run: ./gradlew clean --stacktrace
+      
+      # 6. BUILD DEBUG APK
+      - name: 🏗️ Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
+      
+      # 7. BUILD RELEASE APK (if tag)
+      - name: 🎯 Build Release APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: ./gradlew assembleRelease --stacktrace --no-daemon
+      
+      # 8. GET APK INFO
+      - name: 📊 Get APK Info
+        run: |
+          echo "=== DEBUG APK INFO ==="
+          ls -lh app/build/outputs/apk/debug/ || echo "No debug APK found"
+          
+          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            APK_SIZE=$(du -h app/build/outputs/apk/debug/app-debug.apk | cut -f1)
+            echo "📦 Debug APK Size: $APK_SIZE"
+            echo "debug_apk_size=$APK_SIZE" >> $GITHUB_ENV
+          fi
+          
+          if [ -d app/build/outputs/apk/release/ ]; then
+            echo "=== RELEASE APK INFO ==="
+            ls -lh app/build/outputs/apk/release/
+            
+            if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+              RELEASE_SIZE=$(du -h app/build/outputs/apk/release/app-release-unsigned.apk | cut -f1)
+              echo "📦 Release APK Size: $RELEASE_SIZE"
+            fi
+          fi
+      
+      # 9. UPLOAD DEBUG APK ARTIFACT
+      - name: 📤 Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: app-debug-${{ github.sha }}
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
+          if-no-files-found: error
+      
+      # 10. UPLOAD RELEASE APK (if exists)
+      - name: 📤 Upload Release APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-${{ github.ref_name }}
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
+          if-no-files-found: warn
+      
+      # 11. CREATE GITHUB RELEASE (if tag)
+      - name: 🎉 Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/release/*.apk
+          body: |
+            ## 🎵 AudioVideoPlayer ${{ github.ref_name }}
+            
+            ### 📦 Downloads
+            - **Debug APK**: For testing
+            - **Release APK**: Optimized version
+            
+            ### 📊 APK Size
+            - Debug: ${{ env.debug_apk_size }}
+            
+            ### 🔧 Changes
+            See commit history for details.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      # 12. BUILD SUCCESS COMMENT
+      - name: ✅ Build Success
+        if: success()
+        run: |
+          echo "::notice::✅ Build completed successfully!"
+          echo "::notice::📥 Download APK from Artifacts section"
+      
+      # 13. BUILD FAILURE COMMENT
+      - name: ❌ Build Failed
+        if: failure()
+        run: |
+          echo "::error::❌ Build failed! Check logs above."
+          echo "::error::Common issues: Gradle sync, dependencies, syntax errors"
+
+  # OPTIONAL: RUN TESTS
+  test:
+    name: 🧪 Run Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: ☕ Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+      
+      - name: 🔧 Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+      
+      - name: 🔐 Grant Permission
+        run: chmod +x gradlew
+      
+      - name: 🧪 Run Unit Tests
+        run: ./gradlew test --stacktrace
+      
+      - name: 📊 Test Report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Test Results
+          path: '**/build/test-results/test/TEST-*.xml'
+          reporter: java-junit
+          fail-on-error: false
