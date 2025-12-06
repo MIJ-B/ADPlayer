@@ -1,4 +1,4 @@
-package com.Joro.audioplayer
+package com.Joro.adplayer
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
