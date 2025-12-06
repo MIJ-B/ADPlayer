@@ -1,3 +1,4 @@
+settings.gradle.kts (ROOT)
 pluginManagement {
     repositories {
         google()
