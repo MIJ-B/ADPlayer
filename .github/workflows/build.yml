@@ -1,65 +1,40 @@
-name: 🚀 Build Android APK
+name: Build APK
 
 on:
   push:
-    branches: 
-      - main
-      - dev
+    branches: [main, dev]
   workflow_dispatch:
 
 jobs:
   build:
-    name: 🏗️ Build APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
     
     steps:
-      - name: 📥 Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
       
-      - name: ☕ Setup JDK 17
+      - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
       
-      - name: 🔧 Setup Gradle
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
-      
-      # TSY MILA CHMOD! Ampiasao gradle command mivantana
-      
-      - name: 🧹 Clean Project
-        run: gradle clean --stacktrace
-      
-      - name: 🏗️ Build Debug APK
-        run: gradle assembleDebug --stacktrace --no-daemon
-      
-      - name: 📊 Get APK Info
-        run: |
-          echo "=== APK INFO ==="
-          ls -lh app/build/outputs/apk/debug/ || echo "No APK yet"
-          
-          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            APK_SIZE=$(du -h app/build/outputs/apk/debug/app-debug.apk | cut -f1)
-            echo "📦 APK Size: $APK_SIZE"
-          fi
-      
-      - name: 📤 Upload Debug APK
-        uses: actions/upload-artifact@v4
         with:
-          name: app-debug-${{ github.sha }}
-          path: app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 7
-          if-no-files-found: error
+          gradle-version: 8.2
       
-      - name: ✅ Build Success
+      - name: Build Debug APK
+        run: gradle assembleDebug --stacktrace --info
+      
+      - name: List outputs
+        run: find app/build/outputs -type f
+      
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         if: success()
-        run: |
-          echo "::notice::✅ Build completed successfully!"
-          echo "::notice::📥 Download APK from Artifacts section"
-      
-      - name: ❌ Build Failed
-        if: failure()
-        run: |
-          echo "::error::❌ Build failed! Check logs above."
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
