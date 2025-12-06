@@ -1,4 +1,3 @@
-settings.gradle.kts (ROOT)
 pluginManagement {
     repositories {
         google()
@@ -15,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AudioVideoPlayer"
+rootProject.name = "ADPlayer"
 include(":app")
